@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>Your Wedding Pass</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;min-height:100svh;display:grid;place-items:center;background:#fff1f6;font-family:Montserrat,sans-serif;color:#2a1620;text-align:center;padding:24px}
+img{width:min(340px,88vw);border-radius:16px;box-shadow:0 24px 50px -24px rgba(143,31,76,.6)}
+.b{display:inline-block;margin-top:20px;padding:1em 2.2em;border-radius:999px;border:0;background:linear-gradient(135deg,#ee6fa0,#c2275f);color:#fff;font:600 .72rem Montserrat;letter-spacing:.2em;text-transform:uppercase;cursor:pointer}
+small{display:block;margin-top:14px;color:#6b4a58}
+</style></head><body>
+<div id="box"><p>Loading your pass…</p></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<script src="pass.js"></script>
+<script>
+const sb=window.supabase.createClient("https://wwxqphxhdrhcusvjffka.supabase.co","eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3eHFwaHhoZHJoY3VzdmpmZmthIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM2MDMxMTYsImV4cCI6MjEwOTE3OTExNn0.Ltw3iL2EeX3E-utG66gRE2r-MtBeNQ1IJEhpy4mY730");
+(async()=>{
+  const box=document.getElementById('box');
+  const code=new URLSearchParams(location.search).get('c');
+  if(!code){box.innerHTML='<p>Invalid pass link.</p>';return}
+  const {data,error}=await sb.rpc('get_ticket',{code});
+  if(error||!data||!data.length){box.innerHTML='<p>We could not find this pass.<br>Please contact the event planner.</p>';return}
+  const c=await makePass(data[0]),url=c.toDataURL('image/png');
+  box.innerHTML=`<img src="${url}" alt="Your wedding pass"><br>
+    <a class="b" href="${url}" download="${data[0].name.replace(/[^a-z0-9]+/gi,'-')}-wedding-pass.png">Download pass</a>
+    <small>If it opens as a picture, press and hold it to save.</small>`;
+})();
+</script></body></html>
