@@ -2,7 +2,10 @@
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow"><title>Your Wedding Pass</title>
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <style>
 body{margin:0;min-height:100svh;display:grid;place-items:center;background:#fff1f6;font-family:Montserrat,sans-serif;color:#2a1620;text-align:center;padding:24px}
 img{width:min(340px,88vw);border-radius:16px;box-shadow:0 24px 50px -24px rgba(143,31,76,.6)}
@@ -11,20 +14,74 @@ small{display:block;margin-top:14px;color:#6b4a58}
 </style></head><body>
 <div id="box"><p>Loading your pass…</p></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
-<script src="pass.js"></script>
 <script>
-const sb=window.supabase.createClient("https://wwxqphxhdrhcusvjffka.supabase.co","eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3eHFwaHhoZHJoY3VzdmpmZmthIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM2MDMxMTYsImV4cCI6MjEwOTE3OTExNn0.Ltw3iL2EeX3E-utG66gRE2r-MtBeNQ1IJEhpy4mY730");
-(async()=>{
-  const box=document.getElementById('box');
-  const code=new URLSearchParams(location.search).get('c');
-  if(!code){box.innerHTML='<p>Invalid pass link.</p>';return}
-  const {data,error}=await sb.rpc('get_ticket',{code});
-  if(error||!data||!data.length){box.innerHTML='<p>We could not find this pass.<br>Please contact the event planner.</p>';return}
-  const c=await makePass(data[0]),url=c.toDataURL('image/png');
-  box.innerHTML=`<img src="${url}" alt="Your wedding pass"><br>
-    <a class="b" href="${url}" download="${data[0].name.replace(/[^a-z0-9]+/gi,'-')}-wedding-pass.png">Download pass</a>
-    <small>If it opens as a picture, press and hold it to save.</small>`;
+const box = document.getElementById('box');
+const loadScript = (src) => new Promise((resolve, reject) => {
+  const script = document.createElement('script');
+  const timeout = setTimeout(() => reject(new Error('A required script took too long to load.')), 12000);
+  script.src = src;
+  script.onload = () => {
+    clearTimeout(timeout);
+    resolve();
+  };
+  script.onerror = () => {
+    clearTimeout(timeout);
+    reject(new Error(src === 'pass.js'
+      ? 'The pass generator file (pass.js) is missing or could not be loaded.'
+      : 'A required service could not be loaded. Please check your connection and try again.'));
+  };
+  document.head.appendChild(script);
+});
+
+function showError(message) {
+  box.innerHTML = `<p>${message}</p>`;
+}
+
+(async () => {
+  const code = new URLSearchParams(location.search).get('c');
+  if (!code) {
+    showError('Invalid pass link.');
+    return;
+  }
+
+  try {
+    await Promise.all([
+      loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js'),
+      loadScript('https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js'),
+      loadScript('pass.js')
+    ]);
+
+    if (!window.supabase || typeof window.makePass !== 'function') {
+      throw new Error('The pass generator is unavailable. Please contact the event planner.');
+    }
+
+    const sb = window.supabase.createClient('https://wwxqphxhdrhcusvjffka.supabase.co', '******');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    let result;
+    try {
+      result = await sb.rpc('get_ticket', { code }).abortSignal(controller.signal);
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    const { data, error } = result;
+    if (error || !data || !data.length) {
+      showError('We could not find this pass.<br>Please contact the event planner.');
+      return;
+    }
+
+    const url = (await window.makePass(data[0])).toDataURL('image/png');
+    const filename = String(data[0].name || 'guest').replace(/[^a-z0-9]+/gi, '-') || 'guest';
+    box.innerHTML = `<img src="${url}" alt="Your wedding pass"><br>
+      <a class="b" href="${url}" download="${filename}-wedding-pass.png">Download pass</a>
+      <small>If it opens as a picture, press and hold it to save.</small>`;
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      showError('Loading is taking longer than expected. Please check your connection and try again.');
+      return;
+    }
+    showError(error.message || 'We could not load your pass. Please contact the event planner.');
+  }
 })();
 </script></body></html>
